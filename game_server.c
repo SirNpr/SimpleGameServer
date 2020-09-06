@@ -67,12 +67,15 @@ int main(int argc, char *argv[])
 	int value_read, games = 0; // Declare variables were using
 	char client_message[1024] = {0}; // Set buffer for client messages
 	char server_message_prep[1024] = {0};
-	char player_name[100] = {0};
+	
+	char *player_name;
+	player_name = malloc(sizeof(char) * 100);
 	
 	server_message = "Enter your name: ";
 	send(client_socket , server_message , strlen(server_message) , 0 );
-	value_read = read( client_socket , client_message, 1024);
-	snprintf(player_name, sizeof(player_name), client_message);
+	value_read = read(client_socket , client_message, 1024);
+	
+	snprintf(player_name, 100, client_message);
 	int player_name_len = strlen(player_name);
 	if (player_name[player_name_len-1] == '\n')
 	{
@@ -131,6 +134,7 @@ int main(int argc, char *argv[])
 	snprintf(server_message_prep, sizeof server_message_prep, "Goodbye \"%s\", you won %d games. Wow!\n", player_name, games);
 	server_message = server_message_prep;
 	send(client_socket , server_message , strlen(server_message) , 0 );
+	free(player_name);
 	
 	// Close server socket
 	// shutdown()
