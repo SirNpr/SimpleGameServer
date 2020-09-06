@@ -68,13 +68,16 @@ int main(int argc, char *argv[])
 	char client_message[1024] = {0}; // Set buffer for client messages
 	char server_message_prep[1024] = {0};
 	
+	// Allocate memory for the player name
 	char *player_name;
 	player_name = malloc(sizeof(char) * 100);
 	
+	// Propmt the client for a name up too 100 characters
 	server_message = "Enter your name: ";
 	send(client_socket , server_message , strlen(server_message) , 0 );
 	value_read = read(client_socket , client_message, 1024);
 	
+	// Copy the name from the message buffer and remove \n from pressing enter, if they didnt max out the 100 chars
 	snprintf(player_name, 100, client_message);
 	int player_name_len = strlen(player_name);
 	if (player_name[player_name_len-1] == '\n')
@@ -82,14 +85,17 @@ int main(int argc, char *argv[])
     	player_name[player_name_len-1] = 0;
 	}
 	
+	// Ask the players if they want to play a game, then compare what they say to Y, return 0 if all they hit is Y\n
 	snprintf(server_message_prep, sizeof server_message_prep, "Well \"%s\", do you want to play a game?\nEnter Y/N [case sensative]: ", player_name);
 	server_message = server_message_prep;
 	send(client_socket , server_message , strlen(server_message) , 0 );
 	value_read = read(client_socket , client_message, 1024);
 	int while_check = strncmp("Y", client_message, 1);
 	
+	// While loop that starts the gameflow
 	while (while_check == 0)
 	{
+		// Delcare stuff
 		int attempts, number, guess = 0;
 		srand(time(0)); // Set the rand() seed
 		number = rand() % 100 + 1; // Seting the number to be guessed based off of what rand() returns
@@ -125,12 +131,15 @@ int main(int argc, char *argv[])
 			}
 		}while (guess != number);
 		
+		// Prompt the user if they want to play again, same check
+		attempts = 0; // Reset the attempts number
 		server_message = "Do you want to play again?\nEnter Y/N: ";
 		send(client_socket , server_message , strlen(server_message) , 0 );
 		value_read = read(client_socket , client_message, 1024);
 		while_check = strncmp("Y", client_message, 1);
 	}
 	
+	// Complement the user on their wins, free the memory we alloced 
 	snprintf(server_message_prep, sizeof server_message_prep, "Goodbye \"%s\", you won %d games. Wow!\n", player_name, games);
 	server_message = server_message_prep;
 	send(client_socket , server_message , strlen(server_message) , 0 );
