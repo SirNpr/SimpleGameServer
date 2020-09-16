@@ -7,7 +7,7 @@
 #include <string.h>
 
 int send_everything(int sock, char *buff, int *len);
-int recv_everything(int sock, char** buff, size_t len);
+int recv_everything(int sock, char** buff);
 
 int main(int argc, char *argv[])
 {
@@ -61,19 +61,12 @@ int main(int argc, char *argv[])
     client_socket = accept(server_socket, (struct sockaddr *) &client_address, (socklen_t*) &addrlen);
     printf("Connection from: %s\n", inet_ntoa(client_address.sin_addr));
 	
-	
-	/*
-	FILE *client_stream;
-	if ((client_stream = fdopen(client_socket, "r+w")) == NULL)
-	{
-		printf("File stream was not created");
-		exit(0);
-	}
-	*/
-	
     // Send server hello to NC
-    char *server_message = "Hello welcome to the Server!\n";
+    char *server_message = calloc(100, sizeof(char));
+    //char server_message_prep[1024] = {0};
     
+    //server_message_prep = "Hello welcome to the Server!\n";
+    strcpy(server_message, "Hello welcome to the Server!\n");
     int server_message_length = strlen(server_message);
     if (send_everything(client_socket, server_message, &server_message_length) == -1)
     {
@@ -82,11 +75,8 @@ int main(int argc, char *argv[])
     
 	printf("Hello message sent\n");
 	
-	// Declare vars for the number guessing game
-	int value_read, games = 0; // Declare variables were using
-	
 	// Propmt the client for a name up too 100 characters
-	server_message = "Enter your name: ";
+	strcpy(server_message, "Enter your name: ");
 	server_message_length = strlen(server_message);
     if (send_everything(client_socket, server_message, &server_message_length) == -1)
     {
@@ -94,31 +84,38 @@ int main(int argc, char *argv[])
     }
 	
 	// Allocate memory for the player name
-
 	char *player_name;
 	player_name = NULL;
-	size_t len = 0;
 	int size_of_name = 0;
 	
-	while ((size_of_name = recv_everything(client_socket, &player_name, len)) == -2)
+	while ((size_of_name = recv_everything(client_socket, &player_name)) == -2)
 	{
 		printf("Error on size\n");
-		server_message = "That name is too long try again: ";
+		strcpy(server_message, "That name is too long try again: ");
 		server_message_length = strlen(server_message);
 	    if (send_everything(client_socket, server_message, &server_message_length) == -1)
 	    {
 	    	printf("Send everything error");
+	    	return -1;
 	    }
 	}
+	if (size_of_name == 0)
+	{
+		printf("Normal Server Shut!\n");
+		return 0;
+	}
 	
-	printf("Player name size: %d\n", size_of_name);
 	printf("The player is: %s\n", player_name);
 	
 	// Ask the players if they want to play a game, then compare what they say to Y, return 0 if all they hit is Y\n
-	char server_message_prep[1024] = {0};
-	snprintf(server_message_prep, size_of_name + 100, "Well \"%s\", do you want to play a game?\nEnter Y/N [case sensative]: ", player_name);
-	server_message = server_message_prep;
-	
+	size_of_name += 100;
+	int *size_of_buff;
+	size_of_buff = &size_of_name;
+
+	server_message = realloc(server_message, size_of_name * sizeof(char));
+
+	snprintf(server_message, *size_of_buff, "Well \"%s\", do you want to play a game?\nEnter Y/N [case sensative]: ", player_name);
+
 	server_message_length = strlen(server_message);
     if (send_everything(client_socket, server_message, &server_message_length) == -1)
     {
@@ -127,11 +124,22 @@ int main(int argc, char *argv[])
     
     char *client_message; // Set buffer for client messages
     client_message = NULL;
+    int size_of_client_message = 0;
     
-    size_of_name = recv_everything(client_socket, &client_message, 0);
+    while ((size_of_client_message = recv_everything(client_socket, &client_message)) == -2)
+    {
+    	printf("Error on size\n");
+    	server_message = "That message is too long try again: ";
+    	server_message_length = strlen(server_message);
+    	if (send_everything(client_socket, server_message, &server_message_length) == -1)
+	    {
+	    	printf("Send everything error");
+	    }
+    }
    
-	//value_read = read(client_socket , client_message, 1024);
 	int while_check = strncmp("Y", client_message, 1);
+	
+	int games = 0;
 	
 	// While loop that starts the gameflow
 	while (while_check == 0)
@@ -140,9 +148,9 @@ int main(int argc, char *argv[])
 		int attempts, rand_number, guess = 0;
 		srand(time(0)); // Set the rand() seed
 		rand_number = rand() % 100 + 1; // Seting the number to be guessed based off of what rand() returns
+		printf("Rand number is: %d\n", rand_number);
 		
-		snprintf(server_message_prep, sizeof server_message_prep, "Guess My Number \"%s\".\n", player_name);
-		server_message = server_message_prep;
+		snprintf(server_message, *size_of_buff, "Guess My Number \"%s\".\n", player_name);
 		
 		server_message_length = strlen(server_message);
 	    if (send_everything(client_socket, server_message, &server_message_length) == -1)
@@ -152,20 +160,36 @@ int main(int argc, char *argv[])
 		
 		do
 		{
-			server_message = "Enter a guess bewtween 1 and 100: ";
+			strcpy(server_message, "Enter a guess bewtween 1 and 100: ");
 			
 			server_message_length = strlen(server_message);
 		    if (send_everything(client_socket, server_message, &server_message_length) == -1)
 		    {
 		    	printf("Send everything error\n");
 		    }
-			value_read = read(client_socket , client_message, 1024); // Read the clients message in bytes and store it in client_message
+
+			while ((size_of_client_message = recv_everything(client_socket, &client_message)) == -2)
+			{
+		    	printf("Error on size\n");
+		    	strcpy(server_message, "That message is too long try again: ");
+		    	server_message_length = strlen(server_message);
+		    	if (send_everything(client_socket, server_message, &server_message_length) == -1)
+			    {
+			    	printf("Send everything error");
+			    }				
+			}
+			if (size_of_client_message == 0)
+			{
+				while_check = 1;
+				break;
+			}
 			guess = atoi(client_message); // Convernt the clients input into an int
+			printf("Guess is: %d\n", guess);
 			attempts++; // Incrementing attempts by 1
 			
 			if (guess > rand_number)
 			{
-				server_message = "Too high!\n";
+				strcpy(server_message, "Too high!\n");
 				server_message_length = strlen(server_message);
 			    if (send_everything(client_socket, server_message, &server_message_length) == -1)
 			    {
@@ -174,7 +198,7 @@ int main(int argc, char *argv[])
 			}
 			else if (guess < rand_number)
 			{
-				server_message = "Too Low!\n";
+				strcpy(server_message, "Too Low!\n");
 				server_message_length = strlen(server_message);
 			    if (send_everything(client_socket, server_message, &server_message_length) == -1)
 			    {
@@ -183,8 +207,7 @@ int main(int argc, char *argv[])
 			}
 			else
 			{
-				snprintf(server_message_prep, sizeof server_message_prep, "Correct the number was %d, you got it in %d guesses!\n", rand_number, attempts);
-				server_message = server_message_prep;
+				snprintf(server_message, *size_of_buff, "Correct the number was %d, you got it in %d guesses!\n", rand_number, attempts);
 				server_message_length = strlen(server_message);
 			    if (send_everything(client_socket, server_message, &server_message_length) == -1)
 			    {
@@ -194,27 +217,46 @@ int main(int argc, char *argv[])
 			}
 		}while (guess != rand_number);
 		
+		if (while_check == 1)
+		{
+			break;
+		}
 		// Prompt the user if they want to play again, same check
 		attempts = 0; // Reset the attempts number
-		server_message = "Do you want to play again?\nEnter Y/N: ";
+		strcpy(server_message, "Do you want to play again?\nEnter Y/N: ");
 		server_message_length = strlen(server_message);
 	    if (send_everything(client_socket, server_message, &server_message_length) == -1)
 	    {
 	    	printf("Send everything error\n");
 	    }
-		value_read = read(client_socket , client_message, 1024);
+
+		while ((size_of_client_message = recv_everything(client_socket, &client_message)) == -2)
+    	{
+	    	printf("Error on size\n");
+	    	strcpy(server_message, "That message is too long try again: ");
+	    	server_message_length = strlen(server_message);
+	    	if (send_everything(client_socket, server_message, &server_message_length) == -1)
+		    {
+		    	printf("Send everything error");
+		    }
+    	}
+    	if (size_of_client_message == 0)
+    	{
+    		break;
+    	}
+    	
 		while_check = strncmp("Y", client_message, 1);
 	}
 	
 	// Complement the user on their wins, free the memory we alloced 
-	snprintf(server_message_prep, sizeof server_message_prep, "Goodbye \"%s\", you won %d games. Wow!\n", player_name, games);
-	server_message = server_message_prep;
+	snprintf(server_message, *size_of_buff, "Goodbye \"%s\", you won %d game(s). Wow!\n", player_name, games);
 	server_message_length = strlen(server_message);
     if (send_everything(client_socket, server_message, &server_message_length) == -1)
     {
     	printf("Send everything error\n");
     }
 	free(player_name);
+	free(server_message);
 	
 	// Close server socket
 	// shutdown()
@@ -245,47 +287,61 @@ int send_everything(int sock, char *buff, int *len)
 	return number==-1?-1:0;
 }
 
-int recv_everything(int sock, char** buff, size_t len)
+int recv_everything(int sock, char** buff)
 {
 	int number = 0;
+	char temp_buff[1500] = {0};
+	int len = 500;
 	
-	if (len == 0)
-	{
-		len = 12;
-	}
-	if (*buff == NULL)
-	{
-		*buff = calloc(len, sizeof(char));
-	}
-	else
-	{
-		*buff = realloc(*buff, len);
-	}
-	number = recv(sock, *buff, len, MSG_PEEK);
+	*buff = realloc(*buff, len * sizeof(char));
+	memset(*buff, 0, len);
 
-	while (number < 0 || (*buff)[(number - 1)] != '\n')
+	number = recv(sock, temp_buff, 1500, 0);
+
+	while (number <= 0 || temp_buff[(number - 1)] != '\n')
 	{
 		if (number == -1)
 		{
-			printf("Error at recv_everything");
-			break;
+			printf("Error at recv_everything\n");
+			free(*buff);
+			return number;
 		}
-		len += number;
-
-		*buff = realloc(*buff, len);
-		number = recv(sock, *buff, len, MSG_PEEK);
-	}
-	
-	char *dump = malloc(number * sizeof(char));
-	recv(sock, dump, number, 0); // Dump the rest if the data into a charr aray
-	free(dump);
-	
-	(*buff)[number - 1] = 0; // Remove the '\n' at the end of the data
-	
-	if (number > 500) // Size requirment testing
+		if (number == 0)
 		{
+			
+			printf("recv: returning 0\n");
+			free(*buff);
+			return number;
+		}
+		if (number < -1)
+		{
+			printf("Unexpeted Error in recv\n");
+			free(*buff);
+			return number;
+		}
+		
+		len += number;
+		if (len > 3500)
+		{
+			printf("Size of packet excedes 3499\n");
+			//free(*buff);
 			return -2;
 		}
 		
-	return number;
+		*buff = realloc(*buff, len);
+		strcat(*buff, temp_buff);
+		number = recv(sock, temp_buff, 1500, 0);
+	}
+	
+	if (number > len)
+	{
+		len += number;
+		*buff = realloc(*buff, len);
+	}
+	
+	strcat(*buff, temp_buff);
+	
+	(*buff)[strlen(*buff) - 1] = 0; // Remove the '\n' at the end of the data
+		
+	return strlen(*buff);
 }
